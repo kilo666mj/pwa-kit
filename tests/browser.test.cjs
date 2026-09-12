@@ -1,0 +1,24 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const vm=require('node:vm');
+const fs=require('node:fs');
+const source=fs.readFileSync(__dirname+'/../assets/browser.js','utf8');
+function fixture(config={}){
+ const calls=[], listeners={}, storage=new Map();
+ let sub=config.sub?{endpoint:'https://push.example.com/device',toJSON:()=>({expirationTime:null}),unsubscribe:async()=>{calls.push('unsubscribe');sub=null;return true}}:null;
+ const registration={active:{},pushManager:{getSubscription:async()=>sub,subscribe:async()=>{calls.push('subscribe');return sub={endpoint:'https://push.example.com/device',toJSON:()=>({expirationTime:null}),unsubscribe:async()=>{sub=null;return true}}}}};
+ const context={console,Promise,Uint8Array,atob,setTimeout,clearTimeout,Notification:{permission:config.permission||'granted',requestPermission:()=>{calls.push('permission');context.Notification.permission='granted';return Promise.resolve('granted')}},PushManager:class{},navigator:{userAgent:config.ios?'iPhone':'Chrome',standalone:!config.ios,serviceWorker:{register:async()=>{calls.push('register');return registration},ready:Promise.resolve(registration)}},document:{visibilityState:'visible',addEventListener:(name,fn)=>listeners[name]=fn,removeEventListener:name=>delete listeners[name]},addEventListener:(name,fn)=>listeners[name]=fn,removeEventListener:name=>delete listeners[name],localStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)}};
+ vm.createContext(context);vm.runInContext(source,context);
+ const client=context.PWAKit.createPushClient({getPublicKey:async()=> 'BAAA',save:async()=>{calls.push('save');if(config.failSave)throw Error('server rejected subscription')},remove:async()=>{calls.push('remove');if(config.failRemove)throw Error('server failed')},renewMissing:config.renewMissing,...config.options});
+ return {client,context,calls,listeners,registration};
+}
+test('permission runs in click before asynchronous worker registration',async()=>{const f=fixture({permission:'default'});const work=f.client.enable();assert.deepEqual(f.calls,['permission']);await work;assert.equal(f.client.state.status,'on');assert.deepEqual(f.calls,['permission','register','subscribe','save'])});
+test('existing Safari subscription is saved again before enabled state',async()=>{const f=fixture({sub:true});await f.client.refresh();assert.equal(f.client.state.status,'on');assert.deepEqual(f.calls,['register','save'])});
+test('failed server registration never claims enabled',async()=>{const f=fixture({sub:true,failSave:true});await f.client.refresh();assert.equal(f.client.state.status,'error');assert.equal(f.client.state.subscription,null)});
+test('blocked, unsupported and iPhone tab never prompt',async()=>{for(const mode of ['blocked','unsupported','install']){const f=fixture({ios:mode==='install',permission:mode==='blocked'?'denied':'default'});if(mode==='unsupported')delete f.context.PushManager;await f.client.enable();assert.equal(f.client.state.status,mode);assert.deepEqual(f.calls,[])}});
+test('permission revoked on resume replaces enabled state',async()=>{const f=fixture({sub:true});await f.client.refresh();f.context.Notification.permission='denied';await f.listeners.focus();assert.equal(f.client.state.status,'blocked')});
+test('opt-in renewal respects explicit disable across clients',async()=>{const f=fixture({sub:true,renewMissing:true});await f.client.refresh();await f.client.disable();assert.equal(f.client.state.status,'off');await f.client.refresh();assert.equal(f.client.state.status,'off');assert.equal(f.calls.includes('subscribe'),false);await f.client.enable();assert.equal(f.client.state.status,'on')});
+test('failed removal leaves browser subscription available for recovery',async()=>{const f=fixture({sub:true,failRemove:true});await f.client.refresh();await f.client.disable();assert.equal(f.client.state.status,'error');assert.equal(f.calls.includes('unsubscribe'),false);await f.client.refresh();assert.equal(f.client.state.status,'on')});
+test('duplicate enable calls share one operation',async()=>{const f=fixture({permission:'default'});await Promise.all([f.client.enable(),f.client.enable()]);assert.equal(f.calls.filter(x=>x==='permission').length,1);assert.equal(f.calls.filter(x=>x==='subscribe').length,1)});
+test('destroy releases event listeners for page replacement',()=>{const f=fixture();f.client.destroy();assert.deepEqual(Object.keys(f.listeners),[])});
+test('timed out worker can be retried',async()=>{let attempts=0;const f=fixture({options:{timeoutMs:5,registration:()=>++attempts===1?new Promise(()=>{}):Promise.resolve({active:{},pushManager:{getSubscription:async()=>null}})}});await f.client.refresh();assert.equal(f.client.state.status,'error');await f.client.refresh();assert.equal(f.client.state.status,'off')});

@@ -1,0 +1,1 @@
+{"name":"PWA enrollment example","short_name":"PWA example","start_url":"/","scope":"/","display":"standalone","background_color":"#ffffff","theme_color":"#14532d","icons":[{"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any"}]}
