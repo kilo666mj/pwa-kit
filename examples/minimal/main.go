@@ -25,7 +25,9 @@ func main() {
 	mux.Handle("GET /pwa-kit/", pwakit.Handler())
 	mux.HandleFunc("GET /api/push/key", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"public_key": config.PublicKey})
+		if err := json.NewEncoder(w).Encode(map[string]string{"public_key": config.PublicKey}); err != nil {
+			log.Printf("encode public key response: %v", err)
+		}
 	})
 	// Enrollment is deliberately non-persistent in this example. Replace these
 	// handlers with authenticated, user-owned storage before deploying an app.

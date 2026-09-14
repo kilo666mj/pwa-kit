@@ -67,7 +67,7 @@ func (s Subscription) Validate() error {
 func NormalizeContact(value string) (string, error) {
 	value = strings.TrimSpace(value)
 	if strings.ContainsAny(value, "\r\n\t ") {
-		return "", errors.New("Web Push requires a public contact email or HTTPS URL")
+		return "", errors.New("web push requires a public contact email or HTTPS URL")
 	}
 	if strings.HasPrefix(value, "https:") {
 		u, err := url.Parse(value)
@@ -84,7 +84,7 @@ func NormalizeContact(value string) (string, error) {
 			}
 		}
 	}
-	return "", errors.New("Web Push requires a public contact email or HTTPS URL")
+	return "", errors.New("web push requires a public contact email or HTTPS URL")
 }
 func publicContactHost(host string) bool {
 	host = strings.ToLower(strings.TrimSuffix(host, "."))
@@ -177,7 +177,7 @@ func Send(ctx context.Context, config Config, sub Subscription, payload []byte, 
 		return Result{}, err
 	}
 	if options.TTL < 0 {
-		return Result{}, errors.New("Web Push TTL cannot be negative")
+		return Result{}, errors.New("web push TTL cannot be negative")
 	}
 	urgency := options.Urgency
 	if urgency == "" {
@@ -197,7 +197,9 @@ func Send(ctx context.Context, config Config, sub Subscription, payload []byte, 
 	if err != nil {
 		return Result{}, &DeliveryError{Kind: "transport failed"}
 	}
-	defer response.Body.Close()
+	defer func() {
+		_ = response.Body.Close()
+	}()
 	result := Result{StatusCode: response.StatusCode}
 	if response.StatusCode >= 200 && response.StatusCode < 300 {
 		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 1024))
