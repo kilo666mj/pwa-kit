@@ -11,6 +11,11 @@ step is required by consuming apps.
 go get github.com/kilo666mj/pwa-kit@v0.1.0
 ```
 
+`pwa-kit` requires Go 1.26.5 or newer and tests the minimum and current Go
+releases. Browser and worker helpers are versioned with the Go module, so pin
+one module tag rather than copying the scripts. See the Go API on
+[pkg.go.dev](https://pkg.go.dev/github.com/kilo666mj/pwa-kit).
+
 Mount the scripts before the app's fallback route:
 
 ```go
@@ -72,7 +77,7 @@ An accepted response proves provider acceptance, not on-device display.
 
 ## Browser
 
-See [the minimal enrollment example](examples/minimal). Configure
+See [the minimal enrollment example](examples/minimal/README.md). Configure
 `PWAKit.createPushClient` with:
 
 - `getPublicKey()`: return the app's VAPID public key.
@@ -124,7 +129,8 @@ Caching and worker install/activate handlers remain in your app.
    the app, send through the server, and confirm receipt. Browser mocks cannot
    establish actual APNs/device delivery.
 
-Use `examples/minimal` as the starting point for new integrations. Its server is
+Use [`examples/minimal`](examples/minimal/README.md) as the starting point for
+new integrations. Its server is
 loopback-only and intentionally does not persist subscriptions or send pushes.
 Set `PWA_PUBLIC_KEY`, `PWA_PRIVATE_KEY` and `PWA_CONTACT`, then run
 `go run ./examples/minimal`.
