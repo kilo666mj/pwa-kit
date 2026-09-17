@@ -8,10 +8,13 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"strings"
 	"testing"
+	"time"
 
 	webpush "github.com/SherClockHolmes/webpush-go"
 )
@@ -127,6 +130,84 @@ func TestSafeRejectionsAndExpiry(t *testing.T) {
 	_, err := Send(context.Background(), cfg, sub, []byte(`{}`), Options{HTTPClient: client})
 	if err == nil || strings.Contains(err.Error(), "secret-endpoint") {
 		t.Fatal("unsafe transport error")
+	}
+}
+
+func TestPublicAddressPolicy(t *testing.T) {
+	for _, address := range []string{"8.8.8.8", "1.1.1.1", "2606:4700:4700::1111"} {
+		if !isPublicAddress(netip.MustParseAddr(address)) {
+			t.Errorf("rejected public address %s", address)
+		}
+	}
+	for _, address := range []string{
+		"0.0.0.0", "10.0.0.1", "100.64.0.1", "127.0.0.1", "169.254.169.254",
+		"172.16.0.1", "192.0.2.1", "192.168.1.1", "198.18.0.1", "198.51.100.1",
+		"203.0.113.1", "224.0.0.1", "255.255.255.255", "::", "::1", "::ffff:127.0.0.1",
+		"64:ff9b:1::1", "100::1", "2001:db8::1", "fd00::1", "fe80::1", "ff02::1",
+	} {
+		if isPublicAddress(netip.MustParseAddr(address)) {
+			t.Errorf("accepted non-public address %s", address)
+		}
+	}
+}
+
+func TestPublicDialValidatesResolutionAndDialsLiteralAddress(t *testing.T) {
+	lookups := map[string][]netip.Addr{
+		"public.example":  {netip.MustParseAddr("1.1.1.1")},
+		"private.example": {netip.MustParseAddr("10.0.0.7")},
+		"mixed.example":   {netip.MustParseAddr("1.1.1.1"), netip.MustParseAddr("127.0.0.1")},
+	}
+	lookup := func(_ context.Context, _, host string) ([]netip.Addr, error) {
+		return lookups[host], nil
+	}
+	var dialed []string
+	dial := publicDialContext(lookup, func(_ context.Context, _, address string) (net.Conn, error) {
+		dialed = append(dialed, address)
+		return nil, errors.New("test stop")
+	})
+
+	if _, err := dial(t.Context(), "tcp", "public.example:443"); err == nil {
+		t.Fatal("expected fake dial failure")
+	}
+	if len(dialed) != 1 || dialed[0] != "1.1.1.1:443" {
+		t.Fatalf("dialed = %v, want resolved public literal", dialed)
+	}
+	for _, address := range []string{"private.example:443", "mixed.example:443", "127.0.0.1:443", "[::1]:443"} {
+		dialed = nil
+		if _, err := dial(t.Context(), "tcp", address); err == nil {
+			t.Fatalf("accepted %s", address)
+		}
+		if len(dialed) != 0 {
+			t.Fatalf("dialed non-public destination %s through %v", address, dialed)
+		}
+	}
+}
+
+func TestPublicHTTPClientBlocksRedirects(t *testing.T) {
+	requests := 0
+	client := NewPublicHTTPClient(time.Second)
+	client.Transport = transportFunc(func(request *http.Request) (*http.Response, error) {
+		requests++
+		return &http.Response{
+			StatusCode: http.StatusFound,
+			Header:     http.Header{"Location": []string{"https://127.0.0.1/internal"}},
+			Body:       io.NopCloser(strings.NewReader("")),
+			Request:    request,
+		}, nil
+	})
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://push.example/device", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := client.Do(request)
+	if response != nil {
+		_ = response.Body.Close()
+	}
+	if err == nil {
+		t.Fatal("followed Web Push redirect")
+	}
+	if requests != 1 {
+		t.Fatalf("requests = %d, want 1", requests)
 	}
 }
 func TestEmbeddedAssets(t *testing.T) {

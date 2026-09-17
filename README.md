@@ -34,13 +34,16 @@ registration uses `updateViaCache: 'none'`.
 |---|---|
 | VAPID contact normalization and key-pair validation | Secret storage and key provisioning |
 | Bounded subscription JSON decoder, including `expirationTime: null` | Authentication, same-origin checks and subscription ownership |
-| One push delivery and sanitized provider errors | Recipients, payloads, concurrency, TTL, urgency and retry policy |
+| One push delivery, a public-address-only HTTP client and sanitized provider errors | Recipients, payloads, concurrency, TTL, urgency and retry policy |
 | Permission and subscription lifecycle | Controls, styling, product wording and install UI |
 | Visible push notifications, badges and safe click navigation | Worker activation, caching and optional message prefetch |
 
 Each app keeps its own keys and subscriptions. This is a library, not a shared
-notification service. `Subscription.Validate` checks shape and limits; it does
-not replace DNS-aware egress controls for untrusted subscription endpoints.
+notification service. `Subscription.Validate` checks shape and limits.
+`NewPublicHTTPClient` resolves at dial time, refuses private and special-use
+addresses, dials the validated IP directly, disables proxies, and rejects
+redirects. `Send` uses that protected client when `HTTPClient` is nil; callers
+that override it own equivalent outbound protections.
 
 ## Server
 
@@ -55,6 +58,7 @@ accepts one JSON object, rejects unknown fields, and limits the body to 16 KiB.
 Store the resulting subscription under the authenticated user's identity.
 
 ```go
+outboundClient := pwakit.NewPublicHTTPClient(15 * time.Second)
 result, err := pwakit.Send(ctx, config, subscription, payload, pwakit.Options{
     TTL: 300,
     Urgency: "normal",
@@ -121,7 +125,8 @@ Caching and worker install/activate handlers remain in your app.
 
 1. Pin this module and serve its embedded scripts from the app origin.
 2. Supply durable per-app keys and a real public VAPID contact; validate at startup.
-3. Adapt authenticated, user-owned subscription storage and outbound URL policy.
+3. Adapt authenticated, user-owned subscription storage and use the protected
+   default transport or `NewPublicHTTPClient`.
 4. Connect visible, keyboard-accessible controls to the shared state callbacks.
 5. Keep notification policy and worker caching explicit in the app.
 6. Test permission denial, failed saves, reload/resume and notification clicks.
