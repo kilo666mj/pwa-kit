@@ -165,7 +165,7 @@ func (e *DeliveryError) Error() string {
 	return "Web Push " + e.Kind
 }
 
-var defaultHTTPClient = &http.Client{Timeout: 15 * time.Second}
+var defaultHTTPClient = NewPublicHTTPClient(15 * time.Second)
 
 // Send performs one delivery. Apps decide concurrency, retry policy and removal
 // of expired subscriptions using Result. No delivery is retried implicitly.
