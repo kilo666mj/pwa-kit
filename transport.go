@@ -22,7 +22,7 @@ func NewPublicHTTPClient(timeout time.Duration) *http.Client {
 		Transport: transport,
 		Timeout:   timeout,
 		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return errors.New("Web Push redirects are not allowed")
+			return errors.New("web push redirects are not allowed")
 		},
 	}
 }
@@ -53,7 +53,7 @@ func publicDialContext(lookup lookupNetIPFunc, dial dialContextFunc) dialContext
 func resolvePublicAddresses(ctx context.Context, host string, lookup lookupNetIPFunc) ([]netip.Addr, error) {
 	if literal, err := netip.ParseAddr(host); err == nil {
 		if !isPublicAddress(literal) {
-			return nil, errors.New("Web Push destination is not public")
+			return nil, errors.New("web push destination is not public")
 		}
 		return []netip.Addr{literal.Unmap()}, nil
 	}
@@ -65,7 +65,7 @@ func resolvePublicAddresses(ctx context.Context, host string, lookup lookupNetIP
 	for _, address := range addresses {
 		address = address.Unmap()
 		if !isPublicAddress(address) {
-			return nil, errors.New("Web Push destination is not public")
+			return nil, errors.New("web push destination is not public")
 		}
 		public = append(public, address)
 	}
