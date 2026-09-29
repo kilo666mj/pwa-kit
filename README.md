@@ -8,13 +8,13 @@ step is required by consuming apps.
 ## Install
 
 ```sh
-go get github.com/kilo666mj/pwa-kit@v0.1.0
+go get go.michaelspost.com/pwa-kit@v0.3.0
 ```
 
 `pwa-kit` requires Go 1.26.5 or newer and tests the minimum and current Go
 releases. Browser and worker helpers are versioned with the Go module, so pin
 one module tag rather than copying the scripts. See the Go API on
-[pkg.go.dev](https://pkg.go.dev/github.com/kilo666mj/pwa-kit).
+[pkg.go.dev](https://pkg.go.dev/go.michaelspost.com/pwa-kit).
 
 Mount the scripts before the app's fallback route:
 
@@ -154,3 +154,15 @@ node --test tests/*.test.cjs
 The transport tests use generated keys and a captured HTTP request. Browser and
 worker tests cover user-gesture timing, save failures, revoked permission,
 explicit disable, renewal, startup timeout recovery and notification navigation.
+
+## Module path migration
+
+Starting with `v0.3.0`, the canonical module path is
+`go.michaelspost.com/pwa-kit`. Update imports (including package subpaths)
+and the requirement in `go.mod` together, then run `go mod tidy` and your tests.
+Do not mix the old and new package paths in one build: Go treats them as
+different package identities. No `replace` directive is needed.
+
+Earlier tags retain `github.com/kilo666mj/pwa-kit` and remain available for
+existing consumers pinned to those releases. GitHub remains the source repository;
+the vanity path allows future hosting changes without changing imports again.

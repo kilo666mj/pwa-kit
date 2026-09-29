@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"os"
 
-	pwakit "github.com/kilo666mj/pwa-kit"
+	pwakit "go.michaelspost.com/pwa-kit"
 )
 
 //go:embed web/*
