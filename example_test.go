@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	pwakit "github.com/kilo666mj/pwa-kit"
+	pwakit "go.michaelspost.com/pwa-kit"
 )
 
 func ExampleHandler() {

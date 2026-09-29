@@ -1,4 +1,4 @@
-module github.com/kilo666mj/pwa-kit
+module go.michaelspost.com/pwa-kit
 
 go 1.26.5
 
