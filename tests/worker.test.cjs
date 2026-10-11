@@ -5,3 +5,16 @@ test('display does not wait for prefetch or fail on badging',async()=>{const f=f
 test('malformed payload still displays a notification',async()=>{const f=fixture();f.self.PWAKitWorker.installPushHandlers({title:'Fallback'});let work;f.listeners.push({data:{json:()=>{throw Error('bad JSON')}},waitUntil:p=>work=p});await work;assert.equal(f.shown[0].title,'Fallback')});
 test('click navigation is restricted to app origin',async()=>{const f=fixture();await f.self.PWAKitWorker.openNotification('https://evil.example/path');assert.deepEqual(f.opened,['https://app.example.com/'])});
 test('existing window is navigated and focused; failed navigation opens window',async()=>{const f=fixture();let focused=false;f.self.clients.matchAll=async()=>[{navigate:async url=>({focus:async()=>{focused=url}})}];await f.self.PWAKitWorker.openNotification('/task/1');assert.equal(focused,'https://app.example.com/task/1');f.self.clients.matchAll=async()=>[{navigate:async()=>{throw Error('gone')}}];await f.self.PWAKitWorker.openNotification('/task/2');assert.deepEqual(f.opened,['https://app.example.com/task/2'])});
+
+test('older browsers display declarative payloads with matching presentation and safe navigation',async()=>{
+ const f=fixture();f.self.PWAKitWorker.installPushHandlers({title:'Fallback'});let work;
+ f.listeners.push({data:{json:()=>({web_push:8030,notification:{title:'Backup',body:'Done',navigate:'https://app.example.com/?notification=123',tag:'123',icon:'/icon.png',renotify:true,requireInteraction:true,timestamp:1234}})},waitUntil:p=>work=p});
+ await work;assert.equal(f.shown.length,1);assert.equal(f.shown[0].title,'Backup');
+ assert.equal(f.shown[0].options.body,'Done');assert.equal(f.shown[0].options.tag,'123');assert.equal(f.shown[0].options.requireInteraction,true);
+ assert.equal(f.shown[0].options.data.url,'https://app.example.com/?notification=123');
+});
+test('declarative navigation cannot escape application origin in older browsers',async()=>{
+ const f=fixture();f.self.PWAKitWorker.installPushHandlers();let work;
+ f.listeners.push({data:{json:()=>({web_push:8030,notification:{title:'Test',navigate:'https://evil.example/'}})},waitUntil:p=>work=p});
+ await work;assert.equal(f.shown[0].options.data.url,'https://app.example.com/');
+});

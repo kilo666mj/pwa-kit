@@ -22,3 +22,28 @@ test('failed removal leaves browser subscription available for recovery',async()
 test('duplicate enable calls share one operation',async()=>{const f=fixture({permission:'default'});await Promise.all([f.client.enable(),f.client.enable()]);assert.equal(f.calls.filter(x=>x==='permission').length,1);assert.equal(f.calls.filter(x=>x==='subscribe').length,1)});
 test('destroy releases event listeners for page replacement',()=>{const f=fixture();f.client.destroy();assert.deepEqual(Object.keys(f.listeners),[])});
 test('timed out worker can be retried',async()=>{let attempts=0;const f=fixture({options:{timeoutMs:5,registration:()=>++attempts===1?new Promise(()=>{}):Promise.resolve({active:{},pushManager:{getSubscription:async()=>null}})}});await f.client.refresh();assert.equal(f.client.state.status,'error');await f.client.refresh();assert.equal(f.client.state.status,'off')});
+
+test('repair replaces existing subscription before saving and shares concurrent operation',async()=>{
+ const f=fixture({sub:true});await f.client.refresh();f.calls.length=0;
+ await Promise.all([f.client.repair(),f.client.repair()]);
+ assert.deepEqual(f.calls,['remove','unsubscribe','subscribe','save']);assert.equal(f.client.state.status,'on');
+ assert.match(f.client.state.message,/does not confirm delivery/);
+});
+test('repair never unsubscribes when server removal fails',async()=>{
+ const f=fixture({sub:true,failRemove:true});await f.client.repair();
+ assert.equal(f.client.state.status,'error');assert.equal(f.calls.includes('unsubscribe'),false);
+});
+test('repair failure cannot claim delivery or enabled status',async()=>{
+ const f=fixture({sub:true,failSave:true});await f.client.repair();
+ assert.equal(f.client.state.status,'error');assert.equal(f.client.state.subscription,null);
+});
+test('repair respects denied permission and does not request permission on its own',async()=>{
+ const f=fixture({sub:true,permission:'denied'});await f.client.repair();assert.equal(f.client.state.status,'blocked');assert.deepEqual(f.calls,[]);
+});
+test('repair can recreate a missing subscription',async()=>{
+ const f=fixture();await f.client.repair();assert.deepEqual(f.calls,['register','subscribe','save']);assert.equal(f.client.state.status,'on');
+});
+test('failed unsubscribe stops repair before creating a new subscription',async()=>{
+ const f=fixture({sub:true});const sub=await f.registration.pushManager.getSubscription();sub.unsubscribe=async()=>false;
+ await f.client.repair();assert.equal(f.client.state.status,'error');assert.equal(f.calls.includes('subscribe'),false);
+});

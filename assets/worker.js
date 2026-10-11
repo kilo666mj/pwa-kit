@@ -18,11 +18,18 @@
     root.addEventListener('push', event => {
       let data = {};
       try { const parsed = event.data?.json(); if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) data = parsed; } catch (_) {}
+      // Declarative messages are displayed natively by supporting browsers.
+      // This path supplies equivalent presentation in older browsers.
+      const declared = data.web_push === 8030 && data.notification && typeof data.notification === 'object' ? data.notification : null;
+      if (declared) data = {...data, title: declared.title, body: declared.body, url: declared.navigate, tag: declared.tag};
       const presentation = options.notificationOptions?.(data) || {};
       const notification = {
         body: data.body || '', icon: options.icon, badge: options.badge,
         tag: data.tag || options.tag || 'notification',
-        ...presentation, data: {...presentation.data, url: localURL(data.url)}
+        ...presentation,
+        ...(declared ? {icon: declared.icon || options.icon, badge: declared.badge || options.badge,
+          timestamp: declared.timestamp, renotify: Boolean(declared.renotify), requireInteraction: Boolean(declared.requireInteraction)} : {}),
+        data: {...presentation.data, url: localURL(data.url)}
       };
       // Display immediately. Badging and app prefetch never gate visibility.
       const work = [root.registration.showNotification(data.title || options.title || 'Update', notification)];

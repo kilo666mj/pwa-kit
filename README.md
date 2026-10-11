@@ -88,7 +88,7 @@ See [the minimal enrollment example](examples/minimal/README.md). Configure
 - `save(subscription)` and optional `remove(subscription)`: persist/delete via
   authenticated app APIs; reject on non-success responses.
 - `onState(state)`: render `checking`, `enabling`, `disabling`, `on`, `off`,
-  `blocked`, `install`, `unsupported`, `signedOut` or `error`.
+  `repairing`, `blocked`, `install`, `unsupported`, `signedOut` or `error`.
 - Optional `isAuthenticated()`, `workerURL`, `registration()`, `renewMissing`,
   `storageKey`, `timeoutMs` and `watch`.
 
@@ -99,10 +99,41 @@ are remembered on this origin, so `renewMissing: true` does not silently undo
 them. `on` is emitted only after server registration succeeds. Reopening or
 focusing the app rechecks permission and restores existing server registration.
 
+Call `repair()` from an explicit user action to replace a subscription that
+exists but no longer delivers. It removes the server registration, unsubscribes,
+creates a replacement, and saves it. Failed steps report an error; a failed save
+can be retried with `refresh()`. Repair does not run automatically on focus and
+never prompts for permission. The application should clear any previous device
+test confirmation when repair begins. The `remove` adapter should treat an
+already-absent server registration as success, since delivery or a device test
+may already have removed an expired endpoint.
+
+The `on` state means subscribed, not verified delivery. Applications should offer
+an authenticated, device-specific server test and record explicit user confirmation
+separately from provider acceptance. Local previews do not verify push transport.
+
 Use `destroy()` when replacing a page or signing out; it removes event listeners.
 It suppresses later UI callbacks, but does not cancel in-flight app API requests.
 `client.registration()` supports local notification previews; a local preview
 must not be described as a test of server delivery.
+
+## Declarative payloads
+
+`NewDeclarativePush(Notification{Title: "Backup complete", Navigate:
+"https://app.example.com/?notification=123"})` builds the standard `web_push: 8030`
+envelope. Set body, stable tag, icons, timestamp, renotify and interaction options
+as appropriate. Applications must enforce their own navigation origin. Marshal
+the result and pass it to `Send`; TTL, urgency and transport behavior are unchanged.
+
+Supporting browsers display these immutable messages without requiring JavaScript.
+The worker helper displays the same payload on older browsers. During rollout,
+embed `DeclarativePush` alongside your old top-level fields so previously installed
+workers still understand it. Supply absolute navigation and icon URLs. Apple
+platforms also support `AppBadge` (for example `"1"`). Browser support and provider
+acceptance do not prove physical-device receipt.
+
+See [WebKit's description](https://webkit.org/blog/16535/meet-declarative-web-push/)
+and the [Push API draft](https://www.w3.org/TR/push-api/#declarative-push-message).
 
 ## Worker
 
