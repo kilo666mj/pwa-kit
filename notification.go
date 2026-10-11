@@ -30,6 +30,8 @@ type DeclarativePush struct {
 	Notification Notification `json:"notification"`
 }
 
+// NewDeclarativePush validates the required presentation and navigation fields.
+// Applications may embed the result alongside their legacy payload fields.
 func NewDeclarativePush(notification Notification) (DeclarativePush, error) {
 	u, err := url.Parse(notification.Navigate)
 	if strings.TrimSpace(notification.Title) == "" || err != nil || u.Host == "" || u.User != nil || (u.Scheme != "https" && u.Scheme != "http") || notification.Timestamp < 0 {
