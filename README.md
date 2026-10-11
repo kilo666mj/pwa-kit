@@ -104,7 +104,9 @@ exists but no longer delivers. It removes the server registration, unsubscribes,
 creates a replacement, and saves it. Failed steps report an error; a failed save
 can be retried with `refresh()`. Repair does not run automatically on focus and
 never prompts for permission. The application should clear any previous device
-test confirmation when repair begins.
+test confirmation when repair begins. The `remove` adapter should treat an
+already-absent server registration as success, since delivery or a device test
+may already have removed an expired endpoint.
 
 The `on` state means subscribed, not verified delivery. Applications should offer
 an authenticated, device-specific server test and record explicit user confirmation
