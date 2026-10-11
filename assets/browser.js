@@ -2,8 +2,8 @@
 (function (root) {
   'use strict';
   const messages = {
-    checking: 'Checking notifications…', enabling: 'Enabling notifications…', disabling: 'Disabling notifications…',
-    on: 'Notifications are enabled on this device.', off: 'Notifications are off on this device.',
+    repairing: 'Repairing notifications…', checking: 'Checking notifications…', enabling: 'Enabling notifications…', disabling: 'Disabling notifications…',
+    on: 'This device is subscribed. Subscription status does not confirm delivery.', off: 'Notifications are off on this device.',
     blocked: 'Notifications are blocked. Allow this app in device or browser notification settings.',
     install: 'On iPhone or iPad, add this app to your Home Screen in Safari, then open that icon to enable notifications.',
     unsupported: 'This browser does not support Web Push.', signedOut: 'Sign in to enable notifications.',
@@ -99,6 +99,29 @@
         return result;
       });
     }
+    function repair() {
+      return run(async () => {
+        const status = unavailable();
+        if (status) return publish(status);
+        if (Notification.permission !== 'granted') return publish('off');
+        if (typeof options.remove !== 'function') throw new Error('Repairing notifications is not configured.');
+        publish('repairing');
+        // Validate configuration before retiring the existing subscription.
+        const key = await options.getPublicKey();
+        if (!key) throw new Error('Notifications are not configured on the server.');
+        const serverKey = applicationServerKey(key);
+        const reg = await registration();
+        const previous = await reg.pushManager.getSubscription();
+        if (previous) {
+          await options.remove(previous);
+          if (!await previous.unsubscribe()) throw new Error('Could not retire the old subscription. Try repairing again.');
+        }
+        const subscription = await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: serverKey});
+        const result = await save(subscription);
+        if (result.status === 'on') rememberDisabled(false);
+        return result;
+      });
+    }
     function disable() {
       return run(async () => {
         if (typeof options.remove !== 'function') throw new Error('Disabling notifications is not configured.');
@@ -123,7 +146,7 @@
       root.removeEventListener('focus', refresh); root.removeEventListener('online', refresh);
       document.removeEventListener('visibilitychange', visible);
     }
-    return {refresh, enable, disable, registration, destroy, get state() { return current; }};
+    return {refresh, enable, disable, repair, registration, destroy, get state() { return current; }};
   }
   root.PWAKit = Object.freeze({createPushClient, isAppleMobile, isStandalone, supported, applicationServerKey});
 })(globalThis);
